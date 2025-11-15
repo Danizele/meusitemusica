@@ -9,7 +9,6 @@
 ### ✅ Milestone 2: Interatividade Avançada
 - [x] Interface completa inspirada no Spotify
 - [x] Sistema de player de música avançado
-- [x] Letras sincronizadas em tempo real
 - [x] Design responsivo e acessível
 - [x] Histórico de playlists recentes
 - [x] Sistema de usuário (base)
