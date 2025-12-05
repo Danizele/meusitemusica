@@ -9,6 +9,25 @@
   let isLoading = false;
   let error = null;
   
+  // Função para obter a melhor imagem disponível
+  function getArtistImage(artist, size = 'large') {
+    // Tamanhos: small, medium, large, extralarge, mega
+    const sizeIndex = {
+      'small': 0,
+      'medium': 1,
+      'large': 2,
+      'extralarge': 3,
+      'mega': 4
+    };
+    
+    if (artist.image && artist.image[sizeIndex[size]] && artist.image[sizeIndex[size]]['#text']) {
+      return artist.image[sizeIndex[size]]['#text'];
+    }
+    
+    // Fallback para imagem padrão
+    return 'https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png';
+  }
+  
   async function handleSearch() {
     if (!searchQuery.trim()) return;
     
@@ -44,6 +63,13 @@
         topTracks: tracks
       };
       topTracks = tracks;
+      
+      // Log para debug das imagens
+      console.log('Artista selecionado:', {
+        name: selectedArtist.name,
+        images: selectedArtist.image,
+        bestImage: getArtistImage(selectedArtist, 'extralarge')
+      });
     } catch (err) {
       error = 'Erro ao carregar informações do artista.';
       console.error(err);
@@ -63,8 +89,15 @@
   // Buscar alguns artistas populares ao carregar a página
   onMount(async () => {
     isLoading = true;
-    artists = await searchArtists('the weeknd');
-    isLoading = false;
+    try {
+      // Busca artistas populares para exemplo
+      artists = await searchArtists('the weeknd');
+      console.log('Artistas carregados:', artists);
+    } catch (err) {
+      console.error('Erro ao carregar artistas iniciais:', err);
+    } finally {
+      isLoading = false;
+    }
   });
 </script>
 
@@ -72,7 +105,7 @@
   <!-- HEADER -->
   <header class="search-header">
     <button class="back-btn" on:click={() => history.back()}>←</button>
-    <h1>🔍 Buscar Música</h1>
+    <h1>🔍 Buscar Artistas</h1>
   </header>
   
   <!-- BARRA DE BUSCA -->
@@ -81,7 +114,7 @@
       <input
         type="text"
         bind:value={searchQuery}
-        placeholder="Buscar artistas, músicas..."
+        placeholder="Digite o nome do artista..."
         on:keydown={(e) => e.key === 'Enter' && handleSearch()}
         class="search-input"
       />
@@ -105,30 +138,58 @@
   <!-- RESULTADOS -->
   <div class="results-container">
     {#if selectedArtist}
-      <!-- DETALHES DO ARTISTA -->
+      <!-- DETALHES DO ARTISTA COM FOTO GRANDE -->
       <div class="artist-details">
         <button on:click={() => selectedArtist = null} class="back-to-results">
           ← Voltar aos resultados
         </button>
         
         <div class="artist-header">
-          <div class="artist-image">
-            {#if selectedArtist.image?.[2]?.['#text']}
-              <img src={selectedArtist.image[2]['#text']} alt={selectedArtist.name} />
-            {:else}
-              <div class="artist-image-placeholder">🎤</div>
-            {/if}
+          <div class="artist-image-large">
+            <img 
+              src={getArtistImage(selectedArtist, 'extralarge')} 
+              alt={selectedArtist.name}
+              on:error={(e) => {
+                e.target.src = 'https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png';
+              }}
+            />
           </div>
           
           <div class="artist-info">
             <h2>{selectedArtist.name}</h2>
+            
             {#if selectedArtist.stats?.listeners}
-              <p class="listeners">{selectedArtist.stats.listeners.toLocaleString()} ouvintes</p>
+              <p class="listeners">
+                👂 {selectedArtist.stats.listeners.toLocaleString()} ouvintes
+              </p>
             {/if}
+            
+            {#if selectedArtist.stats?.playcount}
+              <p class="playcount">
+                ▶️ {selectedArtist.stats.playcount.toLocaleString()} plays
+              </p>
+            {/if}
+            
             {#if selectedArtist.bio?.summary}
               <div class="bio">
-                <h3>Biografia</h3>
-                <p>{selectedArtist.bio.summary.replace(/<a[^>]*>.*?<\/a>/g, '')}</p>
+                <h3>📖 Biografia</h3>
+                <div class="bio-content">
+                  {@html selectedArtist.bio.summary
+                    .replace(/<a\b[^>]*>(.*?)<\/a>/gi, '$1')
+                    .replace(/User-contributed text is available.*$/gi, '')
+                    .substring(0, 500) + '...'}
+                </div>
+              </div>
+            {/if}
+            
+            {#if selectedArtist.tags?.tag}
+              <div class="tags">
+                <h3>🏷️ Tags</h3>
+                <div class="tags-list">
+                  {#each selectedArtist.tags.tag.slice(0, 5) as tag}
+                    <span class="tag">{tag.name}</span>
+                  {/each}
+                </div>
               </div>
             {/if}
           </div>
@@ -138,13 +199,15 @@
         <div class="top-tracks">
           <h3>🎵 Top Músicas</h3>
           <div class="tracks-list">
-            {#each topTracks as track, index}
+            {#each topTracks.slice(0, 10) as track, index}
               <div class="track-item">
                 <span class="track-number">{index + 1}.</span>
                 <div class="track-info">
                   <span class="track-name">{track.name}</span>
                   {#if track.listeners}
-                    <span class="track-listeners">{track.listeners.toLocaleString()} plays</span>
+                    <span class="track-listeners">
+                      👂 {track.listeners.toLocaleString()} plays
+                    </span>
                   {/if}
                 </div>
                 <button class="play-track-btn" title="Ouvir prévia">▶</button>
@@ -155,25 +218,30 @@
       </div>
       
     {:else}
-      <!-- LISTA DE ARTISTAS -->
+      <!-- LISTA DE ARTISTAS COM FOTOS -->
       <div class="artists-grid">
         {#each artists as artist}
           <div class="artist-card" on:click={() => selectArtist(artist)}>
             <div class="artist-card-image">
-              {#if artist.image?.[1]?.['#text']}
-                <img src={artist.image[1]['#text']} alt={artist.name} />
-              {:else}
-                <div class="image-placeholder">🎤</div>
-              {/if}
+              <img 
+                src={getArtistImage(artist, 'medium')} 
+                alt={artist.name}
+                on:error={(e) => {
+                  e.target.src = 'https://lastfm.freetls.fastly.net/i/u/174s/2a96cbd8b46e442fc41c2b86b821562f.png';
+                  e.target.onerror = null;
+                }}
+              />
+              <div class="image-overlay">
+                <span class="view-details">Ver detalhes</span>
+              </div>
             </div>
             <div class="artist-card-info">
               <h3>{artist.name}</h3>
-              <p class="artist-listeners">
-                {artist.listeners ? `${parseInt(artist.listeners).toLocaleString()} ouvintes` : 'Artista'}
-              </p>
-            </div>
-            <div class="artist-card-action">
-              <button class="view-btn">Ver detalhes →</button>
+              {#if artist.listeners}
+                <p class="artist-listeners">
+                  👂 {parseInt(artist.listeners).toLocaleString()} ouvintes
+                </p>
+              {/if}
             </div>
           </div>
         {/each}
@@ -181,8 +249,9 @@
       
       {#if artists.length === 0 && !isLoading && searchQuery}
         <div class="empty-state">
-          <p>Nenhum artista encontrado para "{searchQuery}"</p>
-          <p class="suggestion">Tente buscar por: "The Weeknd", "Taylor Swift", "Coldplay"</p>
+          <div class="empty-icon">🎤</div>
+          <p>Nenhum artista encontrado para "<strong>{searchQuery}</strong>"</p>
+          <p class="suggestion">Tente buscar por: "The Weeknd", "Taylor Swift", "Coldplay", "Anitta"</p>
         </div>
       {/if}
     {/if}
@@ -190,7 +259,7 @@
     {#if isLoading}
       <div class="loading-spinner">
         <div class="spinner"></div>
-        <p>Carregando dados da API...</p>
+        <p>Carregando artistas...</p>
       </div>
     {/if}
   </div>
@@ -293,32 +362,30 @@
     margin-bottom: 1rem;
   }
   
-  /* GRID DE ARTISTAS */
+  /* GRID DE ARTISTAS COM FOTOS */
   .artists-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
   }
   
   .artist-card {
     background: #181818;
     border-radius: 8px;
-    padding: 1rem;
+    overflow: hidden;
     cursor: pointer;
-    transition: background 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+    transition: transform 0.2s, background 0.2s;
   }
   
   .artist-card:hover {
+    transform: translateY(-5px);
     background: #282828;
   }
   
   .artist-card-image {
-    width: 60px;
-    height: 60px;
-    border-radius: 4px;
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
     overflow: hidden;
   }
   
@@ -326,38 +393,49 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.3s;
   }
   
-  .image-placeholder {
-    width: 100%;
-    height: 100%;
-    background: #333;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
+  .artist-card:hover .artist-card-image img {
+    transform: scale(1.05);
+  }
+  
+  .image-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+    padding: 1rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  
+  .artist-card:hover .image-overlay {
+    opacity: 1;
+  }
+  
+  .view-details {
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: bold;
   }
   
   .artist-card-info {
-    flex: 1;
+    padding: 1rem;
   }
   
   .artist-card-info h3 {
     margin: 0 0 0.25rem 0;
     font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .artist-listeners {
     margin: 0;
     color: #b3b3b3;
-    font-size: 0.875rem;
-  }
-  
-  .view-btn {
-    background: transparent;
-    color: #1db954;
-    border: none;
-    cursor: pointer;
     font-size: 0.875rem;
   }
   
@@ -377,52 +455,50 @@
   
   .artist-header {
     display: flex;
-    gap: 2rem;
-    margin-bottom: 2rem;
+    gap: 3rem;
+    margin-bottom: 3rem;
     align-items: flex-start;
   }
   
-  .artist-image {
-    width: 200px;
-    height: 200px;
+  .artist-image-large {
+    width: 300px;
+    height: 300px;
     border-radius: 8px;
     overflow: hidden;
     flex-shrink: 0;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   }
   
-  .artist-image img {
+  .artist-image-large img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
   
-  .artist-image-placeholder {
-    width: 100%;
-    height: 100%;
-    background: #333;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 4rem;
+  .artist-info {
+    flex: 1;
   }
   
   .artist-info h2 {
-    font-size: 2rem;
-    margin: 0 0 0.5rem 0;
-  }
-  
-  .listeners {
-    color: #1db954;
-    font-weight: bold;
+    font-size: 2.5rem;
     margin: 0 0 1rem 0;
   }
   
+  .listeners, .playcount {
+    color: #1db954;
+    font-size: 1rem;
+    margin: 0 0 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
   .bio h3 {
-    margin: 0 0 0.5rem 0;
+    margin: 2rem 0 0.5rem 0;
     font-size: 1.25rem;
   }
   
-  .bio p {
+  .bio-content {
     color: #b3b3b3;
     line-height: 1.6;
     max-height: 200px;
@@ -430,16 +506,35 @@
     padding-right: 1rem;
   }
   
+  .tags h3 {
+    margin: 2rem 0 0.5rem 0;
+    font-size: 1.25rem;
+  }
+  
+  .tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .tag {
+    background: #333;
+    color: #fff;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+  }
+  
   /* TOP TRACKS */
   .top-tracks {
     background: #121212;
-    border-radius: 8px;
-    padding: 1.5rem;
+    border-radius: 12px;
+    padding: 2rem;
   }
   
   .top-tracks h3 {
-    margin: 0 0 1rem 0;
-    font-size: 1.25rem;
+    margin: 0 0 1.5rem 0;
+    font-size: 1.5rem;
   }
   
   .tracks-list {
@@ -452,8 +547,8 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 0.75rem;
-    border-radius: 4px;
+    padding: 1rem;
+    border-radius: 8px;
     transition: background 0.2s;
   }
   
@@ -465,51 +560,75 @@
     color: #b3b3b3;
     font-weight: bold;
     min-width: 30px;
+    text-align: center;
   }
   
   .track-info {
     flex: 1;
     display: flex;
     flex-direction: column;
+    gap: 0.25rem;
   }
   
   .track-name {
     font-weight: bold;
+    font-size: 1rem;
   }
   
   .track-listeners {
     color: #b3b3b3;
     font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
   }
   
   .play-track-btn {
-    background: transparent;
-    color: #1db954;
-    border: 2px solid #1db954;
-    width: 32px;
-    height: 32px;
+    background: #1db954;
+    color: white;
+    border: none;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+    transition: transform 0.2s;
   }
   
-  /* STATES */
+  .play-track-btn:hover {
+    transform: scale(1.1);
+  }
+  
+  /* EMPTY STATE */
   .empty-state {
     text-align: center;
-    padding: 3rem 1rem;
+    padding: 4rem 1rem;
     color: #b3b3b3;
+  }
+  
+  .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+  
+  .empty-state p {
+    margin: 0.5rem 0;
   }
   
   .suggestion {
     font-size: 0.875rem;
-    margin-top: 0.5rem;
+    margin-top: 1rem;
+    color: #666;
   }
   
+  /* LOADING */
   .loading-spinner {
     text-align: center;
-    padding: 3rem 1rem;
+    padding: 4rem 1rem;
   }
   
   .spinner {
@@ -531,5 +650,23 @@
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+  
+  /* RESPONSIVO */
+  @media (max-width: 768px) {
+    .artist-header {
+      flex-direction: column;
+      gap: 2rem;
+    }
+    
+    .artist-image-large {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1;
+    }
+    
+    .artists-grid {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
   }
 </style>
