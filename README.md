@@ -22,7 +22,7 @@
 - Sistema de busca responsivo
 - Tratamento de erros e loading states
 
-### ✅ **Milestone 4: Em Desenvolvimento**
+### ✅ **Milestone 4: Concluído**
 - Sistema de usuários com Supabase
 - Autenticação e cadastro
 - Favoritos e playlists personalizadas
